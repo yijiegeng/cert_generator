@@ -21,38 +21,42 @@ def standardize(s):
         s = s[:-1]
     return s
 
+
 def check_domain(domain):
     if domain == '':
         domain = input("please type domain:\n")
         while domain.strip() == '': domain = input()
         return check_domain(domain)
     else:
-        str = input(">>>>>>>> {domain} >>>>>>>>\n[y/n]:".format(domain=domain)).lower()
-        if str ==  "y" :
-            return domain
-        elif str == "n" :
+        str = input(">>>>>>>>\n {domain} \n>>>>>>>>\n[y/n (q to exit)]:".format(domain=domain)).lower()
+        if str == "n":
             domain = input("please type domain:\n")
             while domain.strip() == '': domain = input()
             return check_domain(domain)
-        else :
-            print("invalid answer!")
-            return check_domain(domain)
+        elif str == "q":
+            sys.exit(0)
+        else:
+            return domain
 
-def get_domain(): 
+
+def get_domain():
     fname = 'domain.txt'
-    domain = ''
+    domains = []
     try:
         with open(fname, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-            first_line = lines[0]
-            domain = first_line
+            for line in lines:
+                domains.append(line)
     finally:
-        domain = standardize(domain)
-        domain = check_domain(domain)
-        return domain
+        for idx, domain in enumerate(domains):
+            domains[idx] = standardize(domain)
+
+        domain_str = "\n".join(domains) if len(domains) != 0 else ""
+        check_domain(domain_str)
+        return domains
 
 
-def generator(domain, prefix):
+def generator(domains, prefix):
     root_key = rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
@@ -110,7 +114,7 @@ def generator(domain, prefix):
     ).not_valid_after(
         datetime.datetime.utcnow() + datetime.timedelta(days=90)
     ).add_extension(
-        x509.SubjectAlternativeName([x509.DNSName(domain)]),    # add domain info
+        x509.SubjectAlternativeName([x509.DNSName(domain) for domain in domains]),  # add domain info
         critical=False,
     ).sign(root_key, hashes.SHA256(), default_backend())
     print('<cert> generated!')
@@ -127,16 +131,17 @@ def generator(domain, prefix):
 
     with open(KEY_FILE, "wb") as key_file:
         key_file.write(cert_key.private_bytes(serialization.Encoding.PEM,
-                                       serialization.PrivateFormat.TraditionalOpenSSL,
-                                       serialization.NoEncryption()))
+                                              serialization.PrivateFormat.TraditionalOpenSSL,
+                                              serialization.NoEncryption()))
 
-if __name__=="__main__":
-    domain = get_domain()
-    prefix = domain.split(".", 1)[0]
+
+if __name__ == "__main__":
+    domains = get_domain()
+    prefix = "APP_" + domains[0].split(".fortiweb", 1)[0]
     if os.path.isdir(prefix):
         if os.path.exists(prefix + "/app.crt"):
-            print ("custom cert exist!")
+            print("custom cert exist!")
             sys.exit(0)
     else:
         os.makedirs(prefix)
-    generator(domain, prefix + '/')
+    generator(domains, prefix + '/')
